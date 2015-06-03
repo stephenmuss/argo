@@ -49,16 +49,18 @@
                errors)))
 
 (defn make-errors
-  [errors]
+  [errors & {:keys [exclude-source]}]
   (let [err (if (instance? ValidationError errors) (.schema errors) errors)
-        e (map (fn [[k v]] {:source {:pointer k} :title v}) (flatten-errors err))]
+        e (if exclude-source
+            (map (fn [[k v]] {:title v}) (flatten-errors err))
+            (map (fn [[k v]] {:source {:pointer k} :title v}) (flatten-errors err)))]
     {:errors e}))
 
 (defn bad-req
-  [errors & {:keys [status]}]
+  [errors & {:keys [status exclude-source]}]
   {:status (or status 400)
    :headers {"Content-Type" "application/vnd.api+json"}
-   :body (make-errors errors)})
+   :body (make-errors errors :exclude-source exclude-source)})
 
 (defn x-to-api
   [type x id-key & [rels]]
@@ -180,8 +182,7 @@
                                    status# :status} (~create ~req)]
                               (if errors#
                                 (bad-req errors# :status status#)
-                                (ok (x-to-api ~typ data# ~id-key ~rels) :status 201))
-                              )))
+                                (ok (x-to-api ~typ data# ~id-key ~rels) :status 201)))))
 
                 :options {:headers {"Allowed" ~allowed-many}}
                 :else {:status 405 :headers {"Allowed" ~allowed-many}})))
@@ -193,9 +194,12 @@
                     `(:get (let [{data# :data
                                   status# :status
                                   errors# :errors} (~get-one ~req)]
-                             (if errors#
-                               (bad-req errors# :status status#)
-                               (ok (x-to-api ~typ data# ~id-key ~rels))))))
+                             (cond
+                               errors# (bad-req errors# :status status#)
+                               (nil? data#) (bad-req {:id "The requested resource could not be found"}
+                                                     :status 404
+                                                     :exclude-source true)
+                               :else (ok (x-to-api ~typ data# ~id-key ~rels))))))
 
                 ~@(when update
                     `(:patch (let [{data# :data
