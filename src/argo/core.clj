@@ -15,7 +15,8 @@
     [taoensso.timbre :as timbre])
   (:import [java.util UUID]
            [org.joda.time DateTime]
-           [schema.utils ValidationError NamedError]))
+           [schema.utils ValidationError NamedError]
+           [schema.core NamedSchema]))
 
 
 (add-encoder DateTime
@@ -36,12 +37,28 @@
    :headers (merge {"Content-Type" "application/vnd.api+json"} headers)
    :body {:data data}})
 
+(defn flatten-errors
+  ([errors]
+     (into {} (flatten-errors errors nil)))
+  ([errors pre]
+     (mapcat (fn [[k v]]
+               (let [prefix (if pre (str pre "/" (name k)) (name k))]
+                 (cond (instance? NamedSchema v) [[(str "/" prefix) (:name v)]]
+                       (map? v) (flatten-errors v prefix)
+                       :else [[(str "/" prefix) v]])))
+               errors)))
+
+(defn make-errors
+  [errors]
+  (let [err (if (instance? ValidationError errors) (.schema errors) errors)
+        e (map (fn [[k v]] {:source {:pointer k} :title v}) (flatten-errors err))]
+    {:errors e}))
 
 (defn bad-req
   [errors & {:keys [status]}]
   {:status (or status 400)
    :headers {"Content-Type" "application/vnd.api+json"}
-   :body {:errors errors}})
+   :body (make-errors errors)})
 
 (defn x-to-api
   [type x id-key & [rels]]
@@ -90,9 +107,10 @@
                                                                  data-constraint)}}})))
 
 (defn CreateRequest
-  [schema typ & relationships]
-  (let [data {:data {:attributes schema}
-              :type (s/named (s/eq typ) (str "type must equal " typ))}]
+  [typ schema & relationships]
+  (let [type-name (name typ)
+        data {:data {:attributes schema}
+              :type (s/named (s/eq type-name) (str "type must equal " type-name))}]
     (if relationships
       (merge-with merge data {:data (reduce merge-relationships {} relationships)})
       data)))
