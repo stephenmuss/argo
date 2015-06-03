@@ -8,5 +8,6 @@
                  [clj-time "0.9.0"]
                  [com.taoensso/timbre "3.4.0"]
                  [compojure "1.3.4"]
+                 [prismatic/schema "0.4.2"]
                  [ring/ring-defaults "0.1.5"]
                  [ring/ring-json "0.3.1"]])

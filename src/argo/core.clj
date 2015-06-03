@@ -2,14 +2,33 @@
   (:require
     [clojure.core.match :refer [match]]
     [clojure.string :as str]
+    [cheshire.generate :refer [add-encoder]]
+    [clj-time.format :as f]
     [compojure.core :refer [ANY defroutes context routes]]
     [ring.middleware.defaults :refer [wrap-defaults api-defaults]]
     [ring.middleware.json :refer [wrap-json-body wrap-json-response]]
     [ring.middleware.keyword-params :refer [wrap-keyword-params]]
     [ring.middleware.nested-params :refer [wrap-nested-params]]
     [ring.middleware.params :refer [wrap-params]]
+    [schema.core :as s]
+    [schema.utils :as su]
     [taoensso.timbre :as timbre])
-  (:import java.util.UUID))
+  (:import [java.util UUID]
+           [org.joda.time DateTime]
+           [schema.utils ValidationError NamedError]))
+
+
+(add-encoder DateTime
+             (fn [date json-generator]
+               (.writeString json-generator (f/unparse (f/formatters :date-time) date))))
+
+(add-encoder ValidationError
+             (fn [err json-generator]
+               (.writeString json-generator (str (su/validation-error-explain err)))))
+
+(add-encoder NamedError
+             (fn [err json-generator]
+               (.writeString json-generator (str (.-name err)))))
 
 (defn ok
   [data & [{:keys [status headers]}]]
@@ -60,6 +79,23 @@
              {:status 500
               :headers {"Content-Type" "application/vnd.api+json"}
               :body {:errors [{:status "500" :id id :title "Internal server error."}]}})))))
+
+(defn merge-relationships
+  [data rel]
+  (let [t (:type rel)
+        tt (if (sequential? t) (name (first t)) (name t))
+        data-constraint {:id s/Str :type (s/named (s/eq tt) (str "type must equal " tt))}]
+    (merge-with merge data {:relationships {(:name rel) {:data (if (sequential? t)
+                                                                 [data-constraint]
+                                                                 data-constraint)}}})))
+
+(defn CreateRequest
+  [schema typ & relationships]
+  (let [data {:data {:attributes schema}
+              :type (s/named (s/eq typ) (str "type must equal " typ))}]
+    (if relationships
+      (merge-with merge data {:data (reduce merge-relationships {} relationships)})
+      data)))
 
 (defmacro defapi
   [label api]
