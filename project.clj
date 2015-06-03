@@ -10,4 +10,9 @@
                  [compojure "1.3.4"]
                  [prismatic/schema "0.4.2"]
                  [ring/ring-defaults "0.1.5"]
-                 [ring/ring-json "0.3.1"]])
+                 [ring/ring-json "0.3.1"]]
+  :profiles {:example {:ring {:handler example.api/api
+                              :reload-paths ["src" "example/src"]}
+                       :source-paths ["example/src"]
+                       :plugins [[lein-ring "0.9.3"]]}}
+  :aliases {"example" ["with-profile" "example" "ring" "server-headless"]})
