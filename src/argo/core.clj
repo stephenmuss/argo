@@ -117,9 +117,14 @@
       (merge-with merge data {:data (reduce merge-relationships {} relationships)})
       data)))
 
+(defn not-found [& _]
+  {:status 404
+   :headers {"Content-Type" "application/vnd.api+json"}
+   :body {:errors [{:title "resource not found" :status "404"}]}})
+
 (defmacro defapi
   [label api]
-  (let [resources (:resources api)
+  (let [resources (conj (:resources api) not-found)
         middleware (:middleware api)]
     `(def ~label
        (-> (routes ~@resources)
@@ -196,9 +201,7 @@
                                   errors# :errors} (~get-one ~req)]
                              (cond
                                errors# (bad-req errors# :status status#)
-                               (nil? data#) (bad-req {:id "The requested resource could not be found"}
-                                                     :status 404
-                                                     :exclude-source true)
+                               (nil? data#) (not-found)
                                :else (ok (x-to-api ~typ data# ~id-key ~rels))))))
 
                 ~@(when update
