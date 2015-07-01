@@ -67,7 +67,7 @@
   (when x
     (merge {:type type
             :id (str (get x id-key))
-            :attributes (dissoc (apply dissoc x (vals rels)) id-key)
+            :attributes (dissoc (apply dissoc x (map (fn [[k v]] (:foreign-key v)) rels)) id-key)
             :links {:self (str "/" type "/" (get x id-key))}}
            (when rels {:relationships (apply merge (map (fn [[k v]]
                                                           {k {:related (str "/" type "/" (get x id-key) "/" (name k))}})
