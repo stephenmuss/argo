@@ -3,8 +3,8 @@
             [schema.core :as s])
   (:import java.util.UUID))
 
-(defonce -artists (atom (array-map)))
-(defonce -albums (atom (array-map)))
+(defonce artists-store (atom (array-map)))
+(defonce albums-store (atom (array-map)))
 
 (def NewArtist
   (CreateRequest :artists {:name (s/named s/Str "Artist name is required")}))
@@ -22,27 +22,27 @@
   {:primary-key :id
 
    :find (fn [req]
-           {:data (-> -artists deref vals)})
+           {:data (-> artists-store deref vals)})
 
    :create (fn [req]
                (if-let [errors (s/check NewArtist (:body req))]
                  {:errors errors}
                  (let [id (str (UUID/randomUUID))
                        artist (-> req :body :data :attributes (assoc :id id))]
-                   (swap! -artists assoc id artist)
+                   (swap! artists-store assoc id artist)
                    {:data artist})))
 
    :get (fn [req]
-          {:data (@-artists (-> req :params :id))})
+          {:data (@artists-store (-> req :params :id))})
 
    :rels {:albums {:type [:albums]}}})
 
 (defresource albums
   {:get (fn [req]
-          {:data (@-albums (-> req :params :id))})
+          {:data (@albums-store (-> req :params :id))})
 
    :find (fn [req]
-           {:data (-> -albums deref vals)})
+           {:data (-> albums-store deref vals)})
 
    :create (fn [req]
              (let [errors (s/check NewAlbum (:body req))]
@@ -51,19 +51,19 @@
                  (let [id (str (UUID/randomUUID))
                        artist-id (-> req :body :data :relationships :artist :data :id)
                        album (-> req :body :data :attributes (assoc :id id :artist-id artist-id))]
-                   (if-not (@-artists artist-id)
+                   (if-not (@artists-store artist-id)
                      {:errors {:data {:relationships {:artist {:data {:id (str "An artist with id " artist-id " does not exist")}}}}}}
                      (do
-                       (swap! -albums assoc id album)
+                       (swap! albums-store assoc id album)
                        {:data album}))))))
 
    :delete (fn [req]
-             (swap! -albums dissoc (-> req :params :id)))
+             (swap! albums-store dissoc (-> req :params :id)))
 
    :rels {:artist {:type :artists
                    :foreign-key :artist-id
                    :get (fn [req]
-                          {:data (@-artists (:artist-id (@-albums (-> req :params :id))))})}}})
+                          {:data (@artists-store (:artist-id (@albums-store (-> req :params :id))))})}}})
 
 (defapi api
   {:resources [artists albums]})
