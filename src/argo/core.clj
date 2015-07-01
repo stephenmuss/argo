@@ -111,8 +111,8 @@
 (defn CreateRequest
   [typ schema & relationships]
   (let [type-name (name typ)
-        data {:data {:attributes schema}
-              :type (s/named (s/eq type-name) (str "type must equal " type-name))}]
+        data {:data {:attributes schema
+                     :type (s/named (s/eq type-name) (str "type must equal " type-name))}}]
     (if relationships
       (merge-with merge data {:data (reduce merge-relationships {} relationships)})
       data)))
