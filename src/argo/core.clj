@@ -171,9 +171,10 @@
 (defn rel-req
   [func req]
   (let [{errors :errors
-         status :status} (func req)]
+         status :status
+         exclude-source :exclude-source} (func req)]
     (if errors
-      (bad-req errors :status status)
+      (bad-req errors :status status :exclude-source exclude-source)
       {:status 204 :headers {"Content-Type" "application/vnd.api+json"}})))
 
 (defmacro defresource
