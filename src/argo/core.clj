@@ -32,10 +32,10 @@
                (.writeString json-generator (str (.-name err)))))
 
 (defn ok
-  [data & [{:keys [status headers]}]]
+  [data & {:keys [status headers links]}]
   {:status (or status 200)
    :headers (merge {"Content-Type" "application/vnd.api+json"} headers)
-   :body {:data data}})
+   :body (merge {:data data} (when links {:links links}))})
 
 (defn flatten-errors
   ([errors]
@@ -62,6 +62,34 @@
    :headers {"Content-Type" "application/vnd.api+json"}
    :body (make-errors errors :exclude-source exclude-source)})
 
+(defn map-to-qs [m]
+  (str/join "&" (map (fn [[k v]] (str (name k) "=" v)) m)))
+
+(defn gen-qs
+  [uri params offset limit]
+  (let [qs (str/join "&" (filter not-empty [params (str "page[offset]=" offset) (str "page[limit]=" limit)]))]
+    (str/join "?" [uri qs])))
+
+(defn gen-pagination-links
+  [req {cnt :count offset :offset limit :limit}]
+  (when cnt
+    (let [uri (:uri req)
+          qs (:query-string req)
+          params (dissoc (:query-params req) "page[offset]" "page[limit]")
+          params-encoded (map-to-qs params)
+          next-offset (+ offset limit)
+          prev-offset (- offset limit)
+          last-offset (- cnt limit)]
+      (-> {:self (str/join "?" (filter not-empty [uri qs]))}
+          (merge (when (< next-offset cnt)
+                   {:next (gen-qs uri params-encoded next-offset limit)}))
+          (merge (when (>= prev-offset 0)
+                   {:prev (gen-qs uri params-encoded prev-offset limit)}))
+          (merge (when (> last-offset offset)
+                   {:last (gen-qs uri params-encoded last-offset limit)}))
+          (merge (when (> offset 0)
+                   {:first (gen-qs uri params-encoded 0 limit)}))))))
+
 (defn x-to-api
   [type x id-key & [rels]]
   (when x
@@ -70,7 +98,7 @@
             :attributes (dissoc (apply dissoc x (map (fn [[k v]] (:foreign-key v)) rels)) id-key)
             :links {:self (str "/" type "/" (get x id-key))}}
            (when rels {:relationships (apply merge (map (fn [[k v]]
-                                                          {k {:related (str "/" type "/" (get x id-key) "/" (name k))}})
+                                                          {k {:links {:related (str "/" type "/" (get x id-key) "/" (name k))}}})
                                                         rels))}))))
 
 (defn wrap-pagination
@@ -125,13 +153,15 @@
 (defmacro defapi
   [label api]
   (let [resources (conj (:resources api) not-found)
-        middleware (:middleware api)]
+        middleware (:middleware api)
+        pagination-middleware (wrap-pagination 10 50)]  ; TODO: allow user defined values
     `(def ~label
        (-> (routes ~@resources)
            ~@middleware
+           ~pagination-middleware
            (wrap-json-body {:keywords? true :bigdecimals? true})
-           wrap-nested-params
            wrap-keyword-params
+           wrap-nested-params
            wrap-params
            (wrap-defaults api-defaults)
            wrap-error
@@ -175,18 +205,22 @@
                 ~@(when get-many
                     `(:get (let [{data# :data
                                   errors# :errors
+                                  exclude-source# :exclude-source
                                   status# :status
-                                  total# :count} (~get-many ~req)]
+                                  total# :count} (~get-many ~req)
+                                 pag# (assoc (:page ~req) :count total#)
+                                 links# (gen-pagination-links ~req pag#)]
                              (if errors#
-                               (bad-req errors# :status status#)
-                               (ok (map (fn [x#] (x-to-api ~typ x# ~id-key ~rels)) data#))))))
+                               (bad-req errors# :status status# :exclude-source exclude-source#)
+                               (ok (map (fn [x#] (x-to-api ~typ x# ~id-key ~rels)) data#) :links links#)))))
 
                 ~@(when create
                     `(:post (let [{data# :data
                                    errors# :errors
+                                   exclude-source# :exclude-source
                                    status# :status} (~create ~req)]
                               (if errors#
-                                (bad-req errors# :status status#)
+                                (bad-req errors# :status status# :exclude-source exclude-source#)
                                 (ok (x-to-api ~typ data# ~id-key ~rels) :status 201)))))
 
                 :options {:headers {"Allowed" ~allowed-many}}
@@ -198,25 +232,27 @@
                 ~@(when get-one
                     `(:get (let [{data# :data
                                   status# :status
+                                  exclude-source# :exclude-source
                                   errors# :errors} (~get-one ~req)]
                              (cond
-                               errors# (bad-req errors# :status status#)
+                               errors# (bad-req errors# :status status# :exclude-source exclude-source#)
                                (nil? data#) (not-found)
                                :else (ok (x-to-api ~typ data# ~id-key ~rels))))))
 
                 ~@(when update
                     `(:patch (let [{data# :data
                                     status# :status
+                                    exclude-source# :exclude-source
                                     errors# :errors} (~update ~req)]
                                (cond
-                                 errors# (bad-req errors# :status status#)
+                                 errors# (bad-req errors# :status status# :exclude-source exclude-source#)
                                  data# (ok (x-to-api ~typ data# ~id-key ~rels))
                                  :else {:status 204}))))
 
                 ~@(when delete
-                    `(:delete (let [{errors# :errors status# :status} (~delete ~req)]
+                    `(:delete (let [{errors# :errors status# :status exclude-source# :exclude-source} (~delete ~req)]
                                 (if errors#
-                                  (bad-req errors# :status status#)
+                                  (bad-req errors# :status status# :exclude-source exclude-source#)
                                   {:status 204}))))
 
                 :options {:headers {"Allow" ~allowed-one}}
@@ -232,7 +268,8 @@
                                                           ["OPTIONS"]))
                            many? (sequential? (:type handler))
                            typ (name (if many? (-> handler :type first) (:type handler)))
-                           path (str "/:id/" (name rel))]
+                           path (str "/:id/" (name rel))
+                           total (gensym)]
                        `(ANY ~path []
                              (fn [~req]
                                (match (:request-method ~req)
@@ -242,12 +279,14 @@
                                             `(:get (let [{~data :data
                                                           errors# :errors
                                                           status# :status
-                                                          total# :count
+                                                          exclude-source# :exclude-source
+                                                          ~total :count
                                                           ~relations :rels} (~getf ~req)]
                                                      (if errors#
-                                                       (bad-req errors# :status status#)
+                                                       (bad-req errors# :status status# :exclude-source exclude-source#)
                                                        ~@(if many?
-                                                           `((ok (map #(x-to-api ~typ % ~id-key ~relations) ~data)))
+                                                           `((ok (map #(x-to-api ~typ % ~id-key ~relations) ~data)
+                                                                 :links (gen-pagination-links ~req (assoc (:page ~req) :count ~total))))
                                                            `((ok (x-to-api ~typ ~data ~id-key ~relations)))))))))
                                       ~@(when create
                                           `(:post (rel-req ~create ~req)))
