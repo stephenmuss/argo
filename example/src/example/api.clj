@@ -66,4 +66,5 @@
                           {:data (@artists-store (:artist-id (@albums-store (-> req :params :id))))})}}})
 
 (defapi api
-  {:resources [artists albums]})
+  {:base-url "/v1"
+   :resources [artists albums]})

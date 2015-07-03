@@ -31,6 +31,8 @@
              (fn [err json-generator]
                (.writeString json-generator (str (.-name err)))))
 
+(def base-url "")
+
 (defn ok
   [data & {:keys [status headers links]}]
   {:status (or status 200)
@@ -96,9 +98,9 @@
     (merge {:type type
             :id (str (get x id-key))
             :attributes (dissoc (apply dissoc x (map (fn [[k v]] (:foreign-key v)) rels)) id-key)
-            :links {:self (str "/" type "/" (get x id-key))}}
+            :links {:self (str base-url "/" type "/" (get x id-key))}}
            (when rels {:relationships (apply merge (map (fn [[k v]]
-                                                          {k {:links {:related (str "/" type "/" (get x id-key) "/" (name k))}}})
+                                                          {k {:links {:related (str base-url "/" type "/" (get x id-key) "/" (name k))}}})
                                                         rels))}))))
 
 (defn wrap-pagination
@@ -152,11 +154,14 @@
 
 (defmacro defapi
   [label api]
-  (let [resources (conj (:resources api) not-found)
+  (let [resources (:resources api)
         middleware (:middleware api)
+        base (or (:base-url api) "")
         pagination-middleware (wrap-pagination 10 50)]  ; TODO: allow user defined values
     `(def ~label
-       (-> (routes ~@resources)
+       (do
+         (alter-var-root #'base-url (fn [_#] ~base))
+         (-> (routes (context ~base [] ~@resources) not-found)
            ~@middleware
            ~pagination-middleware
            (wrap-json-body {:keywords? true :bigdecimals? true})
@@ -165,7 +170,7 @@
            wrap-params
            (wrap-defaults api-defaults)
            wrap-error
-           wrap-json-response))))
+           wrap-json-response)))))
 
 
 (defn rel-req
