@@ -1,4 +1,4 @@
-(defproject argo "0.1.0-SNAPSHOT"
+(defproject argo "0.1.0"
   :description "JSON API implementation for Clojure"
   :url "http://github.com/stephenmuss/argo"
   :license {:name "MIT License"
@@ -15,4 +15,6 @@
                               :reload-paths ["src" "example/src"]}
                        :source-paths ["example/src"]
                        :plugins [[lein-ring "0.9.3"]]}}
+  :scm {:name "git"
+        :url "https://github.com/stephenmuss/argo"}
   :aliases {"example" ["with-profile" "example" "ring" "server-headless"]})
