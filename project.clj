@@ -5,7 +5,7 @@
             :url "https://github.com/stephenmuss/argo/blob/master/LICENSE"}
   :dependencies [[org.clojure/clojure "1.6.0"]
                  [org.clojure/core.match "0.3.0-alpha4"]
-                 [clj-time "0.9.0"]
+                 [clj-time "0.10.0"]
                  [com.taoensso/timbre "4.0.2"]
                  [compojure "1.3.4"]
                  [prismatic/schema "0.4.3"]

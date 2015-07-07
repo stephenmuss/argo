@@ -85,7 +85,7 @@ Generally, only errors should be returned for relationship requests. The expecte
 
 Extending the heroes example let's create an `:achievements` relationship to our resource. This will create endpoints at `/heroes/:id/achievements`.
 
-```
+```clojure
   :rels {:achievements {:type [:achievements]
 
                         :get (fn [req]

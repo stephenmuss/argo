@@ -112,10 +112,14 @@
           (if (nil? page)
             (handler (assoc req :page {:offset 0 :limit default-limit}))
             (let [offset (try (Integer/parseInt (:offset page "0")) (catch Throwable t t))
-                  limit (try (Integer/parseInt (:limit page (str default-limit))) (catch Throwable t t))]
+                  limit (try (Integer/parseInt (:limit page (str default-limit))) (catch Throwable t t))
+                  err (fn [e] {:status 400 :headers {"Content-Type" "application/vnd.api+json"} :body {:errors e}})]
               (cond
-                (instance? Throwable offset) (bad-req {})
-                (instance? Throwable limit) (bad-req {})
+                (instance? Throwable offset) (err [{:title "Invalid page offset" :status "400" :source {:parameter "page[offset]"}}])
+                (instance? Throwable limit) (err [{:title "Invalid page limit" :status "400" :source {:parameter "page[limit]"}}])
+                (< offset 0) (err [{:title "page offset cannot be below 0" :status "400" :source {:parameter "page[offset]"}}])
+                (< limit 1) (err [{:title "page limit cannot be below 1" :status "400" :source {:parameter "page[limit]"}}])
+                (> limit max-limit) (err [{:title (format "page limit cannot exceed %d" max-limit) :status "400" :source {:parameter "page[limit]"}}])
                 :else (handler (assoc req :page {:offset offset :limit limit}))))))
         (handler req)))))
 
@@ -156,14 +160,13 @@
   [label api]
   (let [resources (:resources api)
         middleware (:middleware api)
-        base (or (:base-url api) "")
-        pagination-middleware (wrap-pagination 10 50)]  ; TODO: allow user defined values
+        base (or (:base-url api) "")]
     `(def ~label
-       (do
+       (let [wp# (wrap-pagination 10 50)] ; TODO: allow user defined values
          (alter-var-root #'base-url (fn [_#] ~base))
          (-> (routes (context ~base [] ~@resources) not-found)
            ~@middleware
-           ~pagination-middleware
+           wp#
            (wrap-json-body {:keywords? true :bigdecimals? true})
            wrap-keyword-params
            wrap-nested-params
