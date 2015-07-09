@@ -1,70 +1,70 @@
 (ns example.api
   (:require [argo.core :refer [defapi defresource CreateRequest]]
+            [example.db :as db]
             [schema.core :as s])
-  (:import java.util.UUID))
+  (:import [java.lang NumberFormatException]))
 
-(defonce artists-store (atom (array-map)))
-(defonce albums-store (atom (array-map)))
+(def NewHero
+  (CreateRequest :heroes {:name (s/named s/Str "Hero name must be a string")
+                          :birthplace (s/named s/Str "Hero birthplace must be a string")}))
 
-(def NewArtist
-  (CreateRequest :artists {:name (s/named s/Str "Artist name is required")}))
+(def NewAchievement
+  (CreateRequest :achievements
+                 {:name (s/named s/Str "Achievement name must be a string")}
+                 {:name :hero :type :heroes}))
 
-(def NewAlbum
-  (let [artist-rel {:name :artist :type :artists :foreign-key :artist-id}]
-    (CreateRequest :albums
-                   {:name (s/named s/Str "Name is required")
-                    :label (s/named s/Str "Label is required")
-                    :year (s/named s/Int "Year is required")
-                    :catalog_number (s/named s/Str "Catalog number is required")}
-                   artist-rel)))
+(defn parse-id
+  [id]
+  (try (Integer/parseInt id)
+       (catch NumberFormatException t nil)))
 
-(defresource artists
+(defresource heroes
   {:primary-key :id
 
    :find (fn [req]
-           {:data (-> artists-store deref vals)})
+           {:data (db/find-heroes)})
 
    :create (fn [req]
-               (if-let [errors (s/check NewArtist (:body req))]
+               (if-let [errors (s/check NewHero (:body req))]
                  {:errors errors}
-                 (let [id (str (UUID/randomUUID))
-                       artist (-> req :body :data :attributes (assoc :id id))]
-                   (swap! artists-store assoc id artist)
-                   {:data artist})))
+                 (let [attr (-> req :body :data :attributes)]
+                   {:data (db/insert-hero! (:name attr) (:birthplace attr))})))
 
    :get (fn [req]
-          {:data (@artists-store (-> req :params :id))})
-
-   :rels {:albums {:type [:albums]}}})
-
-(defresource albums
-  {:get (fn [req]
-          {:data (@albums-store (-> req :params :id))})
-
-   :find (fn [req]
-           {:data (-> albums-store deref vals)})
-
-   :create (fn [req]
-             (let [errors (s/check NewAlbum (:body req))]
-               (if errors
-                 {:errors errors}
-                 (let [id (str (UUID/randomUUID))
-                       artist-id (-> req :body :data :relationships :artist :data :id)
-                       album (-> req :body :data :attributes (assoc :id id :artist-id artist-id))]
-                   (if-not (@artists-store artist-id)
-                     {:errors {:data {:relationships {:artist {:data {:id (str "An artist with id " artist-id " does not exist")}}}}}}
-                     (do
-                       (swap! albums-store assoc id album)
-                       {:data album}))))))
+          {:data (db/get-hero (-> req :params :id parse-id))})
 
    :delete (fn [req]
-             (swap! albums-store dissoc (-> req :params :id)))
+             (when (false? (db/remove-hero! (parse-id (-> req :params :id))))
+               {:errors {:id "The hero with the specified id could not be found"}
+                :exclude-source true
+                :status 404}))
 
-   :rels {:artist {:type :artists
-                   :foreign-key :artist-id
-                   :get (fn [req]
-                          {:data (@artists-store (:artist-id (@albums-store (-> req :params :id))))})}}})
+   :rels {:achievements {:type [:achievements]
+                         :get (fn [req] {:data (db/find-achievements (parse-id (-> req :params :id)))
+                                         :rels {:hero {:foreign-key :hero}}})}}})
+
+(defresource achievements
+  {:find (fn [req]
+           {:data (db/find-achievements)})
+
+   :get (fn [req]
+          {:data (db/get-achievement (parse-id (-> req :params :id)))})
+
+   :create (fn [req]
+             (if-let [errors (s/check NewAchievement (:body req))]
+               {:errors errors}
+               (let [name (-> req :body :data :attributes :name)
+                     hero (-> req :body :data :relationships :hero :data :id parse-id)
+                     result (db/insert-achievement! name hero)]
+                 (if (instance? Throwable result)
+                   {:errors {:data {:relationships {:hero {:data {:id "The hero specified does not exist"}}}}}}
+                   {:data result}))))
+
+   :rels {:hero {:type :heroes
+                 :foreign-key :hero
+                 :get (fn [req]
+                        {:data (db/get-achievement-hero (parse-id (-> req :params :id)))})}}})
 
 (defapi api
   {:base-url "/v1"
-   :resources [artists albums]})
+   :resources [heroes achievements]})

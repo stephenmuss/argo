@@ -14,7 +14,9 @@
   :profiles {:example {:ring {:handler example.api/api
                               :reload-paths ["src" "example/src"]}
                        :source-paths ["example/src"]
-                       :plugins [[lein-ring "0.9.3"]]}}
+                       :plugins [[lein-ring "0.9.3"]]
+                       :dependencies [[org.clojure/java.jdbc "0.3.7"]
+                                      [com.h2database/h2 "1.4.187"]]}}
   :scm {:name "git"
         :url "https://github.com/stephenmuss/argo"}
   :aliases {"example" ["with-profile" "example" "ring" "server-headless"]})

@@ -127,4 +127,70 @@ In this case, we could now add `my-api` as the ring handler in our project.clj f
 
 ## Example
 
-See the [example implentation](https://github.com/stephenmuss/argo/blob/master/example/src/example/api.clj) for basic usage.
+An [example implentation](https://github.com/stephenmuss/argo/blob/master/example/src/example/api.clj) is provided.
+
+To run the example locally use `lein example`.
+
+Let's add some data:
+
+Enter `curl -XPOST localhost:3000/v1/heroes -H Content-Type:application/vnd.api+json -d '{"data": {"type": "heroes", "attributes": {"name": "Jason", "birthplace": "Iolcos"}}}'; echo` and you should see the following response.
+
+```javascript
+{
+    "data": {
+        "attributes": {
+            "birthplace": "Iolcos",
+            "created": "2015-07-09T06:42:33Z",
+            "name": "Jason"
+        },
+        "id": "1",
+        "links": {
+            "self": "/v1/heroes/1"
+        },
+        "relationships": {
+            "achievements": {
+                "links": {
+                    "related": "/v1/heroes/1/achievements"
+                }
+            }
+        },
+        "type": "heroes"
+    }
+}
+```
+
+Now enter `curl -XPOST -H Content-Type:application/vnd.api+json localhost:3000/v1/achievements -d '{"data": {"type": "achievements", "attributes": {"name": "Acquisition of the Golden Fleece"}, "relationships": {"hero": {"data": {"type": "heroes", "id": "1"}}}}}'; echo` which should return the following reponse.
+
+```javascript
+{
+    "data": {
+        "attributes": {
+            "created": "2015-07-09T06:25:23Z",
+            "name": "Acquisition of the Golden Fleece"
+        },
+        "id": "1",
+        "links": {
+            "self": "/v1/achievements/1"
+        },
+        "relationships": {
+            "hero": {
+                "links": {
+                    "related": "/v1/achievements/1/hero"
+                }
+            }
+        },
+        "type": "achievements"
+    }
+}
+```
+
+You should now be able to make GET requests to the following endpoints and receive responses with data.
+
+* `/v1/heroes`
+* `/v1/heroes/1`
+* `/v1/heroes/1/achievements`
+* `/v1/achievements`
+* `/v1/achievements/1`
+* `/v1/achievements/1/hero`
+
+You can experiment with adding more data and trying other request methods such as `OPTIONS`, `PATCH` and `DELETE`.
