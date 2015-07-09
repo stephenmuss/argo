@@ -133,7 +133,23 @@ To run the example locally use `lein example`.
 
 Let's add some data:
 
-Enter `curl -XPOST localhost:3000/v1/heroes -H Content-Type:application/vnd.api+json -d '{"data": {"type": "heroes", "attributes": {"name": "Jason", "birthplace": "Iolcos"}}}'; echo` and you should see the following response.
+```
+curl -XPOST \
+  localhost:3000/v1/heroes \
+  -H Content-Type:application/vnd.api+json \
+  -d '
+  {
+    "data": {
+      "type": "heroes",
+      "attributes": {
+        "name": "Jason",
+        "birthplace": "Iolcos"
+      }
+    }
+  }'; echo
+```
+
+You should see the following response:
 
 ```javascript
 {
@@ -159,7 +175,29 @@ Enter `curl -XPOST localhost:3000/v1/heroes -H Content-Type:application/vnd.api+
 }
 ```
 
-Now enter `curl -XPOST -H Content-Type:application/vnd.api+json localhost:3000/v1/achievements -d '{"data": {"type": "achievements", "attributes": {"name": "Acquisition of the Golden Fleece"}, "relationships": {"hero": {"data": {"type": "heroes", "id": "1"}}}}}'; echo` which should return the following reponse.
+Now enter
+
+```
+curl -XPOST \
+  -H Content-Type:application/vnd.api+json \
+  localhost:3000/v1/achievements \
+  -d '
+  {
+    "data": {
+      "type": "achievements",
+      "attributes": {
+        "name": "Acquisition of the Golden Fleece"
+      },
+      "relationships": {
+        "hero": {
+          "data": {"type": "heroes", "id": "1"}
+        }
+      }
+    }
+  }'; echo
+```
+
+This should return the following reponse.
 
 ```javascript
 {
