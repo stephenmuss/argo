@@ -67,6 +67,39 @@ To expand on the previous example:
               {:errors errors}))})
 ```
 
+### Resource Creation
+
+Argo provides a helper for the creation and validation of new objects. This is designed to be used in unison with Prismatic's [schema libaray](https://github.com/Prismatic/schema).
+
+Supposing we want to validate new Heroes we would first create a schema for Hero.
+
+```clojure
+(require '[schema.core :as s]
+         '[argo.core :refer [CreateRequest]])
+
+(s/defschema Hero
+  {:name (s/named s/Str "hero name must be a string")
+   :birthplace (s/named s/Str "hero birthplace must be a string")})
+```
+
+We can then use argo's `CreateRequest` to generate a schema which can then be used to ensure that POST requests to create new heroes are in the correct jsonapi format.
+
+```clojure
+(def NewHero (CreateRequest :heroes Hero))
+```
+
+Now in the `:create` request handler the `NewHero` schema can be used to validate  the request body.
+
+```clojure
+(defresource heroes
+  ; ...
+  :create (fn [req]
+    (if-let [errors (s/check NewHero (:body req))]
+      {:errors errors}
+      ;; otherwise create new hero
+      {:data (create-hero (:body req))})))
+```
+
 ### Relationships
 
 In order for argo to be able to generate relationship links it is necessary to implement relationships with the key `:rels`.
@@ -105,6 +138,25 @@ Extending the heroes example let's create an `:achievements` relationship to our
                                   (when-let [errors (heroes/remove-achievement (-> req :params :id) (:body req))]
                                     {:errors errors}))}}
 ```
+
+### Resource Creation and Relationships
+
+If you require that certain relationships are also part of the request when creating a new object, it is possible
+to specify these relationships with argo's `CreateRequest`.
+
+For example, supposing we have a resource for achievements which relate to a hero's accomplishments. We may
+wish that an achievement can only be created by also specifying the hero who accomplished the feat. For example:
+
+```clojure
+(s/defschema Achievement {:name (s/named s/Str "achievement name must be a string")})
+
+(def NewAchievement
+  (CreateRequest :achievements Achievement
+  {:name :hero :type :heroes})) ;; :type :heroes for to-one relationship or :type [:heroes] for to-many.
+```
+
+Now when validating the request body for new achievements, the client will need to include the hero relationship
+as part of the request.
 
 ## APIs
 
