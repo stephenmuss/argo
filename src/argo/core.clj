@@ -34,10 +34,10 @@
 (def base-url "")
 
 (defn ok
-  [data & {:keys [status headers links]}]
+  [data & {:keys [status headers links meta]}]
   {:status (or status 200)
    :headers (merge {"Content-Type" "application/vnd.api+json"} headers)
-   :body (merge {:data data} (when links {:links links}))})
+   :body (merge {:data data} (when links {:links links}) (when meta {:meta meta}))})
 
 (defn flatten-errors
   ([errors]
@@ -216,21 +216,23 @@
                                   errors# :errors
                                   exclude-source# :exclude-source
                                   status# :status
-                                  total# :count} (~get-many ~req)
+                                  total# :count
+                                  m# :meta} (~get-many ~req)
                                  pag# (assoc (:page ~req) :count total#)
                                  links# (gen-pagination-links ~req pag#)]
                              (if errors#
                                (bad-req errors# :status status# :exclude-source exclude-source#)
-                               (ok (map (fn [x#] (x-to-api ~typ x# ~id-key ~rels)) data#) :links links#)))))
+                               (ok (map (fn [x#] (x-to-api ~typ x# ~id-key ~rels)) data#) :links links# :meta m#)))))
 
                 ~@(when create
                     `(:post (let [{data# :data
                                    errors# :errors
                                    exclude-source# :exclude-source
-                                   status# :status} (~create ~req)]
+                                   status# :status
+                                   m# :meta} (~create ~req)]
                               (if errors#
                                 (bad-req errors# :status status# :exclude-source exclude-source#)
-                                (ok (x-to-api ~typ data# ~id-key ~rels) :status 201)))))
+                                (ok (x-to-api ~typ data# ~id-key ~rels) :status 201 :meta m#)))))
 
                 :options {:headers {"Allowed" ~allowed-many}}
                 :else {:status 405 :headers {"Allowed" ~allowed-many}})))
@@ -242,20 +244,22 @@
                     `(:get (let [{data# :data
                                   status# :status
                                   exclude-source# :exclude-source
-                                  errors# :errors} (~get-one ~req)]
+                                  errors# :errors
+                                  m# :meta} (~get-one ~req)]
                              (cond
                                errors# (bad-req errors# :status status# :exclude-source exclude-source#)
                                (nil? data#) (not-found)
-                               :else (ok (x-to-api ~typ data# ~id-key ~rels))))))
+                               :else (ok (x-to-api ~typ data# ~id-key ~rels) :meta m#)))))
 
                 ~@(when update
                     `(:patch (let [{data# :data
                                     status# :status
                                     exclude-source# :exclude-source
-                                    errors# :errors} (~update ~req)]
+                                    errors# :errors
+                                    m# :meta} (~update ~req)]
                                (cond
                                  errors# (bad-req errors# :status status# :exclude-source exclude-source#)
-                                 data# (ok (x-to-api ~typ data# ~id-key ~rels))
+                                 data# (ok (x-to-api ~typ data# ~id-key ~rels) :meta m#)
                                  :else {:status 204}))))
 
                 ~@(when delete
@@ -284,19 +288,22 @@
                                (match (:request-method ~req)
                                       ~@(when getf
                                           (let [data (gensym)
-                                                relations (gensym)]
+                                                relations (gensym)
+                                                m (gensym)]
                                             `(:get (let [{~data :data
                                                           errors# :errors
                                                           status# :status
                                                           exclude-source# :exclude-source
                                                           ~total :count
-                                                          ~relations :rels} (~getf ~req)]
+                                                          ~relations :rels
+                                                          ~m :meta} (~getf ~req)]
                                                      (if errors#
                                                        (bad-req errors# :status status# :exclude-source exclude-source#)
                                                        ~@(if many?
                                                            `((ok (map #(x-to-api ~typ % ~id-key ~relations) ~data)
-                                                                 :links (gen-pagination-links ~req (assoc (:page ~req) :count ~total))))
-                                                           `((ok (x-to-api ~typ ~data ~id-key ~relations)))))))))
+                                                                 :links (gen-pagination-links ~req (assoc (:page ~req) :count ~total))
+                                                                 :meta ~m))
+                                                           `((ok (x-to-api ~typ ~data ~id-key ~relations) :meta ~m))))))))
                                       ~@(when create
                                           `(:post (rel-req ~create ~req)))
 
