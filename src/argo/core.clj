@@ -93,14 +93,14 @@
                    {:first (gen-qs uri params-encoded 0 limit)}))))))
 
 (defn x-to-api
-  [type x id-key & [rels]]
+  [type x primary-key & [rels]]
   (when x
     (merge {:type type
-            :id (str (get x id-key))
-            :attributes (dissoc (apply dissoc x (map (fn [[k v]] (:foreign-key v)) rels)) id-key)
-            :links {:self (str base-url "/" type "/" (get x id-key))}}
+            :id (str (get x primary-key))
+            :attributes (dissoc (apply dissoc x (map (fn [[k v]] (:foreign-key v)) rels)) primary-key)
+            :links {:self (str base-url "/" type "/" (get x primary-key))}}
            (when rels {:relationships (apply merge (map (fn [[k v]]
-                                                          {k {:links {:related (str base-url "/" type "/" (get x id-key) "/" (name k))}}})
+                                                          {k {:links {:related (str base-url "/" type "/" (get x primary-key) "/" (name k))}}})
                                                         rels))}))))
 
 (defn wrap-pagination
@@ -191,7 +191,7 @@
   (let [typ (str label)
         path (str "/" label)
         req (gensym)
-        id-key (:id-key resource :id)
+        primary-key (:primary-key resource :id)
         rels (:rels resource)
         get-many (:find resource)
         get-one (:get resource)
@@ -222,7 +222,7 @@
                                  links# (gen-pagination-links ~req pag#)]
                              (if errors#
                                (bad-req errors# :status status# :exclude-source exclude-source#)
-                               (ok (map (fn [x#] (x-to-api ~typ x# ~id-key ~rels)) data#) :links links# :meta m#)))))
+                               (ok (map (fn [x#] (x-to-api ~typ x# ~primary-key ~rels)) data#) :links links# :meta m#)))))
 
                 ~@(when create
                     `(:post (let [{data# :data
@@ -232,7 +232,7 @@
                                    m# :meta} (~create ~req)]
                               (if errors#
                                 (bad-req errors# :status status# :exclude-source exclude-source#)
-                                (ok (x-to-api ~typ data# ~id-key ~rels) :status 201 :meta m#)))))
+                                (ok (x-to-api ~typ data# ~primary-key ~rels) :status 201 :meta m#)))))
 
                 :options {:headers {"Allowed" ~allowed-many}}
                 :else {:status 405 :headers {"Allowed" ~allowed-many}})))
@@ -249,7 +249,7 @@
                              (cond
                                errors# (bad-req errors# :status status# :exclude-source exclude-source#)
                                (nil? data#) (not-found)
-                               :else (ok (x-to-api ~typ data# ~id-key ~rels) :meta m#)))))
+                               :else (ok (x-to-api ~typ data# ~primary-key ~rels) :meta m#)))))
 
                 ~@(when update
                     `(:patch (let [{data# :data
@@ -259,7 +259,7 @@
                                     m# :meta} (~update ~req)]
                                (cond
                                  errors# (bad-req errors# :status status# :exclude-source exclude-source#)
-                                 data# (ok (x-to-api ~typ data# ~id-key ~rels) :meta m#)
+                                 data# (ok (x-to-api ~typ data# ~primary-key ~rels) :meta m#)
                                  :else {:status 204}))))
 
                 ~@(when delete
@@ -300,10 +300,10 @@
                                                      (if errors#
                                                        (bad-req errors# :status status# :exclude-source exclude-source#)
                                                        ~@(if many?
-                                                           `((ok (map #(x-to-api ~typ % ~id-key ~relations) ~data)
+                                                           `((ok (map #(x-to-api ~typ % ~primary-key ~relations) ~data)
                                                                  :links (gen-pagination-links ~req (assoc (:page ~req) :count ~total))
                                                                  :meta ~m))
-                                                           `((ok (x-to-api ~typ ~data ~id-key ~relations) :meta ~m))))))))
+                                                           `((ok (x-to-api ~typ ~data ~primary-key ~relations) :meta ~m))))))))
                                       ~@(when create
                                           `(:post (rel-req ~create ~req)))
 
