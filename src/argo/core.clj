@@ -183,7 +183,7 @@
          exclude-source :exclude-source} (func req)]
     (if errors
       (bad-req errors :status status :exclude-source exclude-source)
-      {:status 204 :headers {"Content-Type" "application/vnd.api+json"}})))
+      {:status 204})))
 
 (defmacro defresource
   [label resource]
