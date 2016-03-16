@@ -1,4 +1,4 @@
-(defproject argo "0.1.1"
+(defproject argo "0.1.2"
   :description "JSON API implementation for Clojure"
   :url "http://github.com/stephenmuss/argo"
   :license {:name "MIT License"
