@@ -34,10 +34,10 @@
 (def base-url "")
 
 (defn ok
-  [data & {:keys [status headers links meta]}]
+  [data & {:keys [status headers links meta included]}]
   {:status (or status 200)
    :headers (merge {"Content-Type" "application/vnd.api+json"} headers)
-   :body (merge {:data data} (when links {:links links}) (when meta {:meta meta}))})
+   :body (merge {:data data} (when links {:links links}) (when meta {:meta meta}) (when included {:included included}))})
 
 (defn flatten-errors
   ([errors]
@@ -92,15 +92,21 @@
           (merge (when (> offset 0)
                    {:first (gen-qs uri params-encoded 0 limit)}))))))
 
+(comment (dissoc (apply dissoc x (map (fn [[k v]] (:foreign-key v)) rels)) primary-key))
+
 (defn x-to-api
   [type x primary-key & [rels]]
   (when x
     (merge {:type type
             :id (str (get x primary-key))
-            :attributes (dissoc (apply dissoc x (map (fn [[k v]] (:foreign-key v)) rels)) primary-key)
+            :attributes (-> x
+                            (dissoc (map (fn [[k v]] (:foreign-key v)) rels))
+                            (dissoc primary-key)
+                            (dissoc :included))
             :links {:self (str base-url "/" type "/" (get x primary-key))}}
            (when rels {:relationships (apply merge (map (fn [[k v]]
-                                                          {k {:links {:related (str base-url "/" type "/" (get x primary-key) "/" (name k))}}})
+                                                          {k {:links {:related (str base-url "/" type "/" (get x primary-key) "/" (name k))}
+                                                              :data (get-in x [:included k])}})
                                                         rels))}))))
 
 (defn wrap-pagination
@@ -217,12 +223,13 @@
                                   exclude-source# :exclude-source
                                   status# :status
                                   total# :count
-                                  m# :meta} (~get-many ~req)
+                                  m# :meta
+                                  included# :included} (~get-many ~req)
                                  pag# (assoc (:page ~req) :count total#)
                                  links# (gen-pagination-links ~req pag#)]
                              (if errors#
                                (bad-req errors# :status status# :exclude-source exclude-source#)
-                               (ok (map (fn [x#] (x-to-api ~typ x# ~primary-key ~rels)) data#) :links links# :meta m#)))))
+                               (ok (map (fn [x#] (x-to-api ~typ x# ~primary-key ~rels)) data#) :links links# :meta m# :included included#)))))
 
                 ~@(when create
                     `(:post (let [{data# :data
