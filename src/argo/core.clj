@@ -252,11 +252,12 @@
                                   status# :status
                                   exclude-source# :exclude-source
                                   errors# :errors
-                                  m# :meta} (~get-one ~req)]
+                                  m# :meta
+                                  included# :included} (~get-one ~req)]
                              (cond
                                errors# (bad-req errors# :status status# :exclude-source exclude-source#)
                                (nil? data#) (not-found)
-                               :else (ok (x-to-api ~typ data# ~primary-key ~rels) :meta m#)))))
+                               :else (ok (x-to-api ~typ data# ~primary-key ~rels) :meta m# :included included#)))))
 
                 ~@(when update
                     `(:patch (let [{data# :data
