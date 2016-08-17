@@ -104,10 +104,14 @@
                             (dissoc primary-key)
                             (dissoc :included))
             :links {:self (str base-url "/" type "/" (get x primary-key))}}
-           (when rels {:relationships (apply merge (map (fn [[k v]]
-                                                          {k {:links {:related (str base-url "/" type "/" (get x primary-key) "/" (name k))}
-                                                              :data (get-in x [:included k])}})
-                                                        rels))}))))
+           (when rels {:relationships
+                       (apply merge
+                              (map (fn [[k v]]
+                                     {k (merge {:links
+                                                {:related (str base-url "/" type "/" (get x primary-key) "/" (name k))}}
+                                               (when-let [included (get-in x [:included k])]
+                                                 {:data included}))})
+                                   rels))}))))
 
 (defn wrap-pagination
   [default-limit max-limit]
