@@ -317,7 +317,14 @@
                                                                  :meta ~m))
                                                            `((ok (x-to-api ~typ ~data ~primary-key ~relations) :meta ~m))))))))
                                       ~@(when create
-                                          `(:post (rel-req ~create ~req)))
+                                          `(:post (let [{data# :data
+                                                         errors# :errors
+                                                         exclude-source# :exclude-source
+                                                         status# :status
+                                                         m# :meta} (~create ~req)]
+                                                    (if errors#
+                                                      (bad-req errors# :status status# :exclude-source exclude-source#)
+                                                      (ok (x-to-api ~typ data# ~primary-key ~rels) :status 201 :meta m#)))))
 
                                       ~@(when update
                                           `(:patch (rel-req ~update ~req)))
