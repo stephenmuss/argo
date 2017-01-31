@@ -95,27 +95,27 @@
 (comment (dissoc (apply dissoc x (map (fn [[k v]] (:foreign-key v)) rels)) primary-key))
 
 (defn build-relationships
-  "takes object relationship map, primary key and returns json-api formatted map for relationships"
-  [type x primary-key rels]
+  "takes , primary key and returns json-api formatted map for relationships"
+  [rel-type x primary-key rels]
   (apply merge
          (map (fn [[k v]]
                 {k (merge {:links
-                           {:related (str base-url "/" type "/" (get x primary-key) "/" (name k))}}
+                           {:related (str base-url "/" rel-type "/" (get x primary-key) "/" (name k))}}
                           (when-let [data (k (:resource-objects x))]
                             {:data data}))})
                  rels)))
 
 (defn x-to-api
-  [type x primary-key & [rels]]
+  [rel-type x primary-key & [rels]]
   (when x
-    (merge {:type type
+    (merge {:type rel-type
             :id (str (get x primary-key))
             :attributes (-> x
                             (dissoc (map (fn [[k v]] (:foreign-key v)) rels))
                             (dissoc primary-key)
                             (dissoc :resource-objects))
-            :links {:self (str base-url "/" type "/" (get x primary-key))}}
-           (when rels {:relationships (build-relationships type x primary-key rels)}))))
+            :links {:self (str base-url "/" rel-type "/" (get x primary-key))}}
+           (when rels {:relationships (build-relationships rel-type x primary-key rels)}))))
 
 (defn wrap-pagination
   [default-limit max-limit]

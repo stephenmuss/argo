@@ -37,6 +37,8 @@ Argo expects as the result of these functions a map with the following keys:
 * `:status`: Use to override the status of responses. Defaults to 400 for error responses and 200 for valid responses.
 * `:exclude-source`: Use this to exclude the source object as per the JSON API spec in error responses.
 * `:count`: argo provides automatic generation of pagination links if using pagination for `:find`. Use `:count` to let argo know how many total objects exist when implementing pagination.
+* `:included` You may optionally include top-level, related resource objects.
+* `:resource-objects` You may optionally include related resource identifier objects.
 
 In most circumstances it will probably only be necessary to include either `:data` or `:errors`.
 
@@ -266,8 +268,9 @@ This should return the following reponse.
             "hero": {
                 "links": {
                     "related": "/v1/achievements/1/hero"
-                }
-            }
+                },
+                "data": { "type": "heroes", "id": 1 }
+            },
         },
         "type": "achievements"
     }
