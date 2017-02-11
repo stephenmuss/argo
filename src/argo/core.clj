@@ -101,7 +101,7 @@
          (map (fn [[k v]]
                 {k (merge {:links
                            {:related (str base-url "/" rel-type "/" (get x primary-key) "/" (name k))}}
-                          (when-let [data (k (:resource-objects x))]
+                          (when-let [data (k (:resource-identifiers x))]
                             {:data data}))})
                  rels)))
 
@@ -113,7 +113,7 @@
             :attributes (-> x
                             (dissoc (map (fn [[k v]] (:foreign-key v)) rels))
                             (dissoc primary-key)
-                            (dissoc :resource-objects))
+                            (dissoc :resource-identifiers))
             :links {:self (str base-url "/" rel-type "/" (get x primary-key))}}
            (when rels {:relationships (build-relationships rel-type x primary-key rels)}))))
 
