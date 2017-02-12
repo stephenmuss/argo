@@ -110,16 +110,6 @@
                              {:data data}))})
                  rels)))
 
-(defn build-included
-  "builds collection of included records from collection of included record maps"
-  [included]
-  (when (not-empty included)
-    (map (fn [[typ included-of-type]]
-           (map (fn [include]
-                  (x-to-api (name typ) include :id))
-                included-of-type))
-         included)))
-
 (defn x-to-api
   [typ x primary-key & [rels]]
   (when x
@@ -128,11 +118,21 @@
             :attributes (-> x
                             (dissoc (map (fn [[k v]] (:foreign-key v)) rels))
                             (dissoc primary-key)
-                            (dissoc :included)
                             (dissoc :resource-identifiers))
             :links {:self (str base-url "/" typ "/" (get x primary-key))}}
            (when rels
              {:relationships (build-relationships typ x primary-key rels)}))))
+
+(defn build-included
+  "builds collection of resources to include in a response"
+  [included]
+  (when (not-empty included)
+        (->> included
+            (map (fn [[typ included-of-type]]
+                   (if (seq? included-of-type)
+                     (map (fn [include] (x-to-api (name typ) include :id)) included-of-type)
+                     [(x-to-api (name typ) included-of-type :id)])))
+            (reduce (fn [acc curr] (into acc curr))))))
 
 (defn wrap-pagination
   [default-limit max-limit]

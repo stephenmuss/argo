@@ -43,8 +43,8 @@ Argo expects as the result of these functions a map with the following keys:
   ```clojure
   {
     :data {...}
-    :included {:heroes [{:id "12345"
-                         :name "Jason"}]}
+    :included {:heroes [{:id 1 :name "Jason"}]
+               :ally {:id 2 :name "Medea"}}
   }
   ```
 
@@ -281,7 +281,20 @@ This should return the following reponse.
             },
         },
         "type": "achievements"
-    }
+    },
+    "included": [
+        {
+            "type": "heroes",
+            "id": "1",
+            "attributes": {
+                "created": "2017-02-12T00:09:59Z",
+                "name": "Jason"
+            },
+            "links": {
+              "self": "/v1/heroes/1"
+            }
+        }
+    ]
 }
 ```
 
