@@ -129,7 +129,7 @@
   (when (not-empty included)
         (->> included
             (map (fn [[typ included-of-type]]
-                   (if (seq? included-of-type)
+                   (if (coll? included-of-type)
                      (map (fn [include] (x-to-api (name typ) include :id)) included-of-type)
                      [(x-to-api (name typ) included-of-type :id)])))
             (reduce (fn [acc curr] (into acc curr))))))
