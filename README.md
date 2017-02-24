@@ -33,10 +33,20 @@ Each operation expects its implementation to be a function with a ring request o
 Argo expects as the result of these functions a map with the following keys:
 
 * `:data`: The data which will be returned in the API response. This should be a map for a single resource (as implemented with `:get`) or a vector/sequence for `:find`.
+  - Optional data: `:resource-identifiers` You may _optionally_ include related resource identifier objects.
 * `:errors`: A map of keywords and string values. Will be converted to the JSON API error format. Works well with Prismatic schema error types.
 * `:status`: Use to override the status of responses. Defaults to 400 for error responses and 200 for valid responses.
 * `:exclude-source`: Use this to exclude the source object as per the JSON API spec in error responses.
 * `:count`: argo provides automatic generation of pagination links if using pagination for `:find`. Use `:count` to let argo know how many total objects exist when implementing pagination.
+* `:included` You may _optionally_ include top-level, related resource objects.
+  - for example:
+  ```clojure
+  {
+    :data {...}
+    :included {:heroes [{:id 1 :name "Jason"}]
+               :ally {:id 2 :name "Medea"}}
+  }
+  ```
 
 In most circumstances it will probably only be necessary to include either `:data` or `:errors`.
 
@@ -266,11 +276,25 @@ This should return the following reponse.
             "hero": {
                 "links": {
                     "related": "/v1/achievements/1/hero"
-                }
-            }
+                },
+                "data": { "type": "heroes", "id": 1 }
+            },
         },
         "type": "achievements"
-    }
+    },
+    "included": [
+        {
+            "type": "heroes",
+            "id": "1",
+            "attributes": {
+                "created": "2017-02-12T00:09:59Z",
+                "name": "Jason"
+            },
+            "links": {
+              "self": "/v1/heroes/1"
+            }
+        }
+    ]
 }
 ```
 

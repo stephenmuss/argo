@@ -48,7 +48,8 @@
            {:data (db/find-achievements)})
 
    :get (fn [req]
-          {:data (db/get-achievement (parse-id (-> req :params :id)))})
+          {:data (db/get-achievement (parse-id (-> req :params :id)))
+           :included {:heroes (db/get-achievement-hero (parse-id (-> req :params :id)))}})
 
    :create (fn [req]
              (if-let [errors (s/check NewAchievement (:body req))]
@@ -63,7 +64,7 @@
    :rels {:hero {:type :heroes
                  :foreign-key :hero
                  :get (fn [req]
-                        {:data (db/get-achievement-hero (parse-id (-> req :params :id)))})}}})
+                          {:data (db/get-achievement-hero (parse-id (-> req :params :id)))})}}})
 
 (defapi api
   {:base-url "/v1"

@@ -34,10 +34,14 @@
 (def base-url "")
 
 (defn ok
-  [data & {:keys [status headers links meta]}]
+  [data & {:keys [status headers links meta included]}]
   {:status (or status 200)
    :headers (merge {"Content-Type" "application/vnd.api+json"} headers)
-   :body (merge {:data data} (when links {:links links}) (when meta {:meta meta}))})
+   :body (merge
+          {:data data}
+          (when links {:links links})
+          (when meta {:meta meta})
+          (when included {:included included}))})
 
 (defn flatten-errors
   ([errors]
@@ -92,16 +96,47 @@
           (merge (when (> offset 0)
                    {:first (gen-qs uri params-encoded 0 limit)}))))))
 
+(comment (dissoc (apply dissoc x (map (fn [[k v]] (:foreign-key v)) rels)) primary-key))
+
+(defn build-relationships
+  "builds json-api formatted map for relationships,
+   including resource identifier objecs if in x"
+  [rel-type x primary-key rels]
+  (apply merge
+         (map (fn [[rel-key v]]
+                {rel-key (merge
+                           {:links {:related (str base-url "/" rel-type "/" (get x primary-key) "/" (name rel-key))}}
+                           (when-let [data (rel-key (:resource-identifiers x))]
+                             {:data data}))})
+                 rels)))
+
+(defn remove-unused-keys
+  [x primary-key rels]
+  (let [rel-keys (map (fn [[k v]] (:foreign-key v)) rels)
+        keys-to-remove (concat rel-keys [:resource-identifiers primary-key])]
+    (apply dissoc x keys-to-remove)))
+
 (defn x-to-api
-  [type x primary-key & [rels]]
+  [typ x primary-key & [rels]]
   (when x
-    (merge {:type type
+    (merge {:type typ
             :id (str (get x primary-key))
-            :attributes (dissoc (apply dissoc x (map (fn [[k v]] (:foreign-key v)) rels)) primary-key)
-            :links {:self (str base-url "/" type "/" (get x primary-key))}}
-           (when rels {:relationships (apply merge (map (fn [[k v]]
-                                                          {k {:links {:related (str base-url "/" type "/" (get x primary-key) "/" (name k))}}})
-                                                        rels))}))))
+            :attributes (remove-unused-keys x primary-key rels)
+            :links {:self (str base-url "/" typ "/" (get x primary-key))}}
+           (when rels
+             {:relationships (build-relationships typ x primary-key rels)}))))
+
+(defn build-included
+  "builds collection of resources to include in a response"
+  [included]
+  (when (not-empty included)
+        (->> included
+            (map (fn [[typ included-of-type]]
+                   (when (coll? included-of-type)
+                     (if (map? included-of-type)
+                       [(x-to-api (name typ) included-of-type :id)]
+                       (map (fn [include] (x-to-api (name typ) include :id)) included-of-type)))))
+            (reduce (fn [acc curr] (into acc curr))))))
 
 (defn wrap-pagination
   [default-limit max-limit]
@@ -217,12 +252,15 @@
                                   exclude-source# :exclude-source
                                   status# :status
                                   total# :count
-                                  m# :meta} (~get-many ~req)
+                                  m# :meta
+                                  included# :included} (~get-many ~req)
                                  pag# (assoc (:page ~req) :count total#)
                                  links# (gen-pagination-links ~req pag#)]
-                             (if errors#
-                               (bad-req errors# :status status# :exclude-source exclude-source#)
-                               (ok (map (fn [x#] (x-to-api ~typ x# ~primary-key ~rels)) data#) :links links# :meta m#)))))
+                             (cond
+                               errors# (bad-req errors# :status status# :exclude-source exclude-source#)
+                               (:include (:params ~req)) (bad-req {:?include "include resources not supported"} :status 400 :exclude-source exclude-source#)
+                               (nil? data#) (not-found)
+                               :else (ok (map (fn [x#] (x-to-api ~typ x# ~primary-key ~rels)) data#) :links links# :meta m# :included (build-included included#))))))
 
                 ~@(when create
                     `(:post (let [{data# :data
@@ -245,11 +283,13 @@
                                   status# :status
                                   exclude-source# :exclude-source
                                   errors# :errors
-                                  m# :meta} (~get-one ~req)]
+                                  m# :meta
+                                  included# :included} (~get-one ~req)]
                              (cond
                                errors# (bad-req errors# :status status# :exclude-source exclude-source#)
+                               (:include (:params ~req)) (bad-req {:?include "include resources not supported"} :status 400 :exclude-source exclude-source#)
                                (nil? data#) (not-found)
-                               :else (ok (x-to-api ~typ data# ~primary-key ~rels) :meta m#)))))
+                               :else (ok (x-to-api ~typ data# ~primary-key ~rels) :meta m# :included (build-included included#))))))
 
                 ~@(when update
                     `(:patch (let [{data# :data
@@ -305,7 +345,14 @@
                                                                  :meta ~m))
                                                            `((ok (x-to-api ~typ ~data ~primary-key ~relations) :meta ~m))))))))
                                       ~@(when create
-                                          `(:post (rel-req ~create ~req)))
+                                          `(:post (let [{data# :data
+                                                         errors# :errors
+                                                         exclude-source# :exclude-source
+                                                         status# :status
+                                                         m# :meta} (~create ~req)]
+                                                    (if errors#
+                                                      (bad-req errors# :status status# :exclude-source exclude-source#)
+                                                      (ok (x-to-api ~typ data# ~primary-key ~rels) :status 201 :meta m#)))))
 
                                       ~@(when update
                                           `(:patch (rel-req ~update ~req)))

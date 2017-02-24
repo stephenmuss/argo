@@ -79,7 +79,7 @@
 (defn get-achievement-hero
   [id]
   (when (integer? id)
-    (let [q (str "SELECT heroes.id AS id, heroes.name AS name, heroes.created AS created "
+    (let [q (str "SELECT heroes.id AS id, heroes.name AS name, heroes.created AS created, heroes.birthplace AS birthplace "
                  "FROM heroes, achievements "
                  "WHERE achievements.id = ? AND heroes.id = achievements.id")]
       (first (jdbc/query db [q id])))))
