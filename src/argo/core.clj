@@ -110,15 +110,18 @@
                              {:data data}))})
                  rels)))
 
+(defn remove-unused-keys
+  [x primary-key rels]
+  (let [rel-keys (map (fn [[k v]] (:foreign-key v)) rels)
+        keys-to-remove (concat rel-keys [:resource-identifiers primary-key])]
+    (apply dissoc x keys-to-remove)))
+
 (defn x-to-api
   [typ x primary-key & [rels]]
   (when x
     (merge {:type typ
             :id (str (get x primary-key))
-            :attributes (-> x
-                            (dissoc (map (fn [[k v]] (:foreign-key v)) rels))
-                            (dissoc primary-key)
-                            (dissoc :resource-identifiers))
+            :attributes (remove-unused-keys x primary-key rels)
             :links {:self (str base-url "/" typ "/" (get x primary-key))}}
            (when rels
              {:relationships (build-relationships typ x primary-key rels)}))))
@@ -129,9 +132,10 @@
   (when (not-empty included)
         (->> included
             (map (fn [[typ included-of-type]]
-                   (if (coll? included-of-type)
-                     (map (fn [include] (x-to-api (name typ) include :id)) included-of-type)
-                     [(x-to-api (name typ) included-of-type :id)])))
+                   (when (coll? included-of-type)
+                     (if (map? included-of-type)
+                       [(x-to-api (name typ) included-of-type :id)]
+                       (map (fn [include] (x-to-api (name typ) include :id)) included-of-type)))))
             (reduce (fn [acc curr] (into acc curr))))))
 
 (defn wrap-pagination

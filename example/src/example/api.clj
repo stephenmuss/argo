@@ -64,7 +64,7 @@
    :rels {:hero {:type :heroes
                  :foreign-key :hero
                  :get (fn [req]
-                        {:data (db/get-achievement-hero (parse-id (-> req :params :id)))})}}})
+                          {:data (db/get-achievement-hero (parse-id (-> req :params :id)))})}}})
 
 (defapi api
   {:base-url "/v1"
